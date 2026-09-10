@@ -103,6 +103,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ShortenedUrlEntity
 import com.example.data.remote.ShortenerProvider
 import com.example.ui.components.QrCodeView
+import com.example.ui.components.UrlInputSection
 import com.example.ui.theme.CyanPrimary
 import com.example.ui.theme.CyanPrimaryLight
 import com.example.ui.theme.EmeraldSuccess
@@ -126,8 +127,6 @@ fun UrlShortenerScreen(
   val focusManager = LocalFocusManager.current
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-
-  var showAdvancedOptions by remember { mutableStateOf(false) }
 
   fun copyToClipboard(text: String, label: String = "Link Encurtado") {
     clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(text))
@@ -244,223 +243,57 @@ fun UrlShortenerScreen(
         StatsHeader(stats = stats)
       }
 
-      // 2. Input Card
+      // 2. Input Component (URL Text Field + Shorten Button)
       item(key = "input_card") {
-        Card(
-          shape = RoundedCornerShape(20.dp),
-          colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-          ),
-          elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-          modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-        ) {
-          Column(modifier = Modifier.padding(18.dp)) {
-            Text(
-              text = "Cole o link longo",
-              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-            )
-            Text(
-              text = "Diminua os caracteres para compartilhar facilmente",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.padding(bottom = 12.dp)
-            )
+        Column(modifier = Modifier.fillMaxWidth()) {
+          UrlInputSection(
+            url = uiState.urlInput,
+            onUrlChange = { viewModel.onUrlChanged(it) },
+            onShortenClick = { viewModel.shortenUrl() },
+            isLoading = uiState.isLoading,
+            onPasteClick = { pasteFromClipboard() },
+            selectedProvider = uiState.selectedProvider,
+            onProviderSelected = { viewModel.onProviderSelected(it) },
+            alias = uiState.aliasInput,
+            onAliasChange = { viewModel.onAliasChanged(it) }
+          )
 
-            // URL input text field
-            OutlinedTextField(
-              value = uiState.urlInput,
-              onValueChange = { viewModel.onUrlChanged(it) },
-              modifier = Modifier
-                .fillMaxWidth()
-                .testTag("url_input_field"),
-              placeholder = { Text("https://exemplo.com/link-muito-longo...") },
-              leadingIcon = {
-                Icon(Icons.Default.Link, contentDescription = null, tint = CyanPrimary)
-              },
-              trailingIcon = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                  if (uiState.urlInput.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.onUrlChanged("") }) {
-                      Icon(Icons.Default.Clear, contentDescription = "Limpar link")
-                    }
-                  } else {
-                    IconButton(
-                      onClick = { pasteFromClipboard() },
-                      modifier = Modifier.testTag("paste_button")
-                    ) {
-                      Icon(Icons.Default.ContentPaste, contentDescription = "Colar da área de transferência")
-                    }
-                  }
-                }
-              },
-              singleLine = false,
-              maxLines = 3,
-              shape = RoundedCornerShape(14.dp),
-              keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                imeAction = ImeAction.Done
-              ),
-              keyboardActions = KeyboardActions(
-                onDone = {
-                  focusManager.clearFocus()
-                  viewModel.shortenUrl()
-                }
-              ),
-              colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = CyanPrimary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-              )
-            )
-
-            // Advanced options toggle
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .clickable { showAdvancedOptions = !showAdvancedOptions }
-                .padding(vertical = 10.dp),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-              Text(
-                text = "Opções avançadas (Provedor & Apelido)",
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = CyanPrimary
-              )
-              Icon(
-                imageVector = if (showAdvancedOptions) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
-                tint = CyanPrimary
-              )
-            }
-
-            AnimatedVisibility(visible = showAdvancedOptions) {
-              Column(
+          // Error display
+          AnimatedVisibility(visible = uiState.errorMessage != null) {
+            uiState.errorMessage?.let { errorMsg ->
+              Row(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .padding(top = 4.dp, bottom = 12.dp)
+                  .padding(top = 10.dp)
+                  .clip(RoundedCornerShape(12.dp))
+                  .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f))
+                  .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
               ) {
-                Text(
-                  text = "Provedor de Encurtamento",
-                  style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(
+                  Icons.Outlined.Info,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.error,
+                  modifier = Modifier.size(20.dp)
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                  modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                  horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                  ShortenerProvider.values().forEach { provider ->
-                    FilterChip(
-                      selected = uiState.selectedProvider == provider,
-                      onClick = { viewModel.onProviderSelected(provider) },
-                      label = { Text(provider.displayName) },
-                      colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = CyanPrimary.copy(alpha = 0.15f),
-                        selectedLabelColor = CyanPrimary
-                      )
-                    )
-                  }
-                }
-
-                if (uiState.selectedProvider.supportsAlias) {
-                  Spacer(modifier = Modifier.height(10.dp))
-                  OutlinedTextField(
-                    value = uiState.aliasInput,
-                    onValueChange = { viewModel.onAliasChanged(it) },
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .testTag("alias_input_field"),
-                    placeholder = { Text("Apelido personalizado (opcional)") },
-                    label = { Text("Apelido / Custom Slug") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                      focusedBorderColor = CyanPrimary,
-                      unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                    )
-                  )
-                }
-              }
-            }
-
-            // Error display
-            AnimatedVisibility(visible = uiState.errorMessage != null) {
-              uiState.errorMessage?.let { errorMsg ->
-                Row(
-                  modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f))
-                    .padding(12.dp),
-                  verticalAlignment = Alignment.CenterVertically
-                ) {
-                  Icon(
-                    Icons.Outlined.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp)
-                  )
-                  Spacer(modifier = Modifier.width(8.dp))
-                  Text(
-                    text = errorMsg,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.weight(1f)
-                  )
-                  IconButton(
-                    onClick = { viewModel.dismissError() },
-                    modifier = Modifier.size(24.dp)
-                  ) {
-                    Icon(
-                      Icons.Default.Close,
-                      contentDescription = "Fechar erro",
-                      tint = MaterialTheme.colorScheme.onErrorContainer,
-                      modifier = Modifier.size(16.dp)
-                    )
-                  }
-                }
-              }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Main Action Button
-            Button(
-              onClick = {
-                focusManager.clearFocus()
-                viewModel.shortenUrl()
-              },
-              modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .testTag("shorten_button"),
-              enabled = !uiState.isLoading,
-              shape = RoundedCornerShape(14.dp),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = CyanPrimary
-              )
-            ) {
-              if (uiState.isLoading) {
-                CircularProgressIndicator(
-                  modifier = Modifier.size(24.dp),
-                  color = Color.White,
-                  strokeWidth = 2.5.dp
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Encurtando...", style = MaterialTheme.typography.bodyMedium)
-              } else {
-                Icon(Icons.Default.Link, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                  text = "Encurtar URL",
-                  style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                  text = errorMsg,
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onErrorContainer,
+                  modifier = Modifier.weight(1f)
                 )
+                IconButton(
+                  onClick = { viewModel.dismissError() },
+                  modifier = Modifier.size(24.dp)
+                ) {
+                  Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Fechar erro",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(16.dp)
+                  )
+                }
               }
             }
           }
