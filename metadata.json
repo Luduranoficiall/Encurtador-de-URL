@@ -1,0 +1,6 @@
+{
+  "name": "Encurtador de URL",
+  "description": "Encurtador de links rápido com histórico, estatísticas de caracteres economizados, QR Code e compartilhamento fácil.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
